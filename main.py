@@ -16,7 +16,7 @@ import random
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, Form, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -42,6 +42,22 @@ BASE_DIR = Path(__file__).parent
 TEMPLATES_DIR = BASE_DIR / "templates"
 STATIC_DIR = BASE_DIR / "static"
 STATIC_DIR.mkdir(exist_ok=True)
+
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+class RegisterRequest(BaseModel):
+    username: str
+    password: str
+    name: str
+    height_cm: float
+    current_weight_kg: float
+    target_weight_kg: float
+    goal_label: str
+    payment_digits: Optional[str] = None
 
 
 
@@ -158,56 +174,71 @@ def home(request: Request, db: Session = Depends(get_db)):
 
 @app.post("/api/register")
 def register(
-    username: str = Form(...),
-    password: str = Form(...),
-    name: str = Form(...),
-    height_cm: float = Form(...),
-    current_weight_kg: float = Form(...),
-    target_weight_kg: float = Form(...),
-    goal_label: str = Form(...),
-    payment_digits: str = Form(...),
+    data: RegisterRequest,
     db: Session = Depends(get_db),
 ):
     """Register a new user and set session cookie."""
-    existing = db.query(User).filter(User.username == username).first()
-    if existing:
-        return JSONResponse({"error": "Username already taken"}, status_code=400)
-    
-    user = User(
-        username=username,
-        password=pwd_context.hash(password),
-        name=name,
-        height_cm=height_cm,
-        start_weight_kg=current_weight_kg,
-        current_weight_kg=current_weight_kg,
-        target_weight_kg=target_weight_kg,
-        goal_label=goal_label,
-        payment_ref=payment_digits,
-        is_paid=True,
-    )
-    db.add(user)
-    db.commit()
-    db.refresh(user)
-    
-    response = JSONResponse({"success": True})
-    response.set_cookie(key="session_id", value=str(user.id), httponly=True)
-    return response
+    try:
+        # Очистка данных и отладка
+        clean_password = str(data.password).strip()
+        print(f"DEBUG: Password length: {len(clean_password)}")
+
+        # Валидация пароля (bcrypt поддерживает до 72 байт)
+        if len(clean_password) > 50:
+            return JSONResponse({"status": "error", "message": "Пароль слишком длинный (макс. 50 символов)"}, status_code=400)
+
+        existing = db.query(User).filter(User.username == data.username).first()
+        if existing:
+            return JSONResponse({"status": "error", "message": "Username already taken"}, status_code=400)
+        
+        user = User(
+            username=data.username,
+            password=pwd_context.hash(clean_password),
+            name=data.name,
+            height_cm=data.height_cm,
+            start_weight_kg=data.current_weight_kg,
+            current_weight_kg=data.current_weight_kg,
+            target_weight_kg=data.target_weight_kg,
+            goal_label=data.goal_label,
+            payment_ref=data.payment_digits,
+            is_paid=True, # Automatically paid for MVP as requested in previous contexts
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        
+        response = JSONResponse({"status": "success", "message": "Registered successfully"})
+        response.set_cookie(key="session_id", value=str(user.id), httponly=True)
+        return response
+    except Exception as e:
+        return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
 
 
 @app.post("/api/login")
 def login(
-    username: str = Form(...),
-    password: str = Form(...),
+    data: LoginRequest,
     db: Session = Depends(get_db),
 ):
     """Login and set session cookie."""
-    user = db.query(User).filter(User.username == username).first()
-    if not user or not pwd_context.verify(password, user.password):
-        return JSONResponse({"error": "Invalid credentials"}, status_code=401)
-    
-    response = JSONResponse({"success": True})
-    response.set_cookie(key="session_id", value=str(user.id), httponly=True)
-    return response
+    try:
+        user = db.query(User).filter(User.username == data.username).first()
+        
+        # DEBUG (как вы просили)
+        print(f"DEBUG: Login attempt for user: {data.username}")
+        match = pwd_context.verify(data.password, user.password) if user else False
+        print(f"DEBUG: Password match result: {match}")
+
+        if not user or not match:
+            return JSONResponse({"status": "error", "message": "Invalid login or password"}, status_code=401)
+        
+        if not user.is_paid:
+            return JSONResponse({"status": "error", "message": "Доступ ограничен, требуется оплата", "unpaid": True}, status_code=403)
+        
+        response = JSONResponse({"status": "success", "message": "Welcome"})
+        response.set_cookie(key="session_id", value=str(user.id), httponly=True)
+        return response
+    except Exception as e:
+        return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
 
 
 @app.post("/api/logout")
@@ -434,3 +465,64 @@ def get_leaderboard(request: Request, db: Session = Depends(get_db)):
     # Sort descending by progress
     ranked.sort(key=lambda x: x["progress_pct"], reverse=True)
     return {"leaderboard": ranked[:10]}
+
+
+# ── Admin Panel ───────────────────────────────────────────────────────────────
+
+@app.get("/admin", response_class=HTMLResponse)
+def admin_panel(request: Request, db: Session = Depends(get_db)):
+    """Admin dashboard to manage users."""
+    users = db.query(User).order_by(User.id.desc()).all()
+    return templates.TemplateResponse(
+        "admin.html",
+        {
+            "request": request,
+            "users": users,
+        },
+    )
+
+
+class UserUpdate(BaseModel):
+    name: Optional[str] = None
+    height_cm: Optional[float] = None
+    current_weight_kg: Optional[float] = None
+    target_weight_kg: Optional[float] = None
+    goal_label: Optional[str] = None
+
+@app.patch("/api/users/{user_id}")
+def update_user_details(user_id: int, update_data: UserUpdate, db: Session = Depends(get_db)):
+    """Update user details."""
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        return JSONResponse({"error": "User not found"}, status_code=404)
+    
+    if update_data.name is not None:
+        user.name = update_data.name
+    if update_data.height_cm is not None:
+        user.height_cm = update_data.height_cm
+    if update_data.current_weight_kg is not None:
+        user.current_weight_kg = update_data.current_weight_kg
+    if update_data.target_weight_kg is not None:
+        user.target_weight_kg = update_data.target_weight_kg
+    if update_data.goal_label is not None:
+        user.goal_label = update_data.goal_label
+        
+    db.commit()
+    return {"success": True}
+
+
+@app.patch("/api/users/{user_id}/toggle_paid")
+def toggle_paid(user_id: int, db: Session = Depends(get_db)):
+    """Toggle the is_paid status of a user."""
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        return JSONResponse({"error": "User not found"}, status_code=404)
+    
+    user.is_paid = not user.is_paid
+    db.commit()
+    return {"success": True, "is_paid": user.is_paid}
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
