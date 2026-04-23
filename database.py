@@ -1,6 +1,7 @@
 """
 database.py — SQLAlchemy setup and models for Step by Step.
 """
+import os
 from datetime import datetime, timezone
 
 from sqlalchemy import (
@@ -19,6 +20,9 @@ from sqlalchemy.orm import (
     relationship,
     sessionmaker,
 )
+
+# Ensure the data directory exists before establishing connection
+os.makedirs("./data", exist_ok=True)
 
 engine = create_engine(
     "sqlite:///./data/tracker_v3.db",
