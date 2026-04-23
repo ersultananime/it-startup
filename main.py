@@ -26,9 +26,22 @@ from sqlalchemy.orm import Session
 from database import Base, User, WorkoutLog, engine, get_db
 import openai
 from openai import OpenAI
-from passlib.context import CryptContext
+import bcrypt as _bcrypt
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+def _hash_password(password: str) -> str:
+    """Hash password with bcrypt (max 72 bytes)."""
+    pw_bytes = password.encode("utf-8")[:72]
+    return _bcrypt.hashpw(pw_bytes, _bcrypt.gensalt()).decode("utf-8")
+
+
+def _verify_password(password: str, hashed: str) -> bool:
+    """Verify password against bcrypt hash."""
+    try:
+        pw_bytes = password.encode("utf-8")[:72]
+        return _bcrypt.checkpw(pw_bytes, hashed.encode("utf-8"))
+    except Exception:
+        return False
 
 load_dotenv()
 try:
@@ -121,7 +134,12 @@ def get_current_user(request: Request, db: Session) -> Optional[User]:
     user_id = request.cookies.get("session_id")
     if not user_id:
         return None
-    return db.query(User).filter(User.id == int(user_id)).first()
+        
+    try:
+        uid = int(user_id)
+        return db.query(User).filter(User.id == uid).first()
+    except ValueError:
+        return None
 
 
 def _get_active_user(db: Session) -> Optional[User]:
@@ -180,12 +198,8 @@ def register(
     """Register a new user and set session cookie."""
     try:
         # Очистка данных и отладка
-        clean_password = str(data.password).strip()
+        clean_password = str(data.password).strip()  # bcrypt 72-byte limit handled inside _hash_password
         print(f"DEBUG: Password length: {len(clean_password)}")
-
-        # Валидация пароля (bcrypt поддерживает до 72 байт)
-        if len(clean_password) > 50:
-            return JSONResponse({"status": "error", "message": "Пароль слишком длинный (макс. 50 символов)"}, status_code=400)
 
         existing = db.query(User).filter(User.username == data.username).first()
         if existing:
@@ -193,7 +207,7 @@ def register(
         
         user = User(
             username=data.username,
-            password=pwd_context.hash(clean_password),
+            password=_hash_password(clean_password),
             name=data.name,
             height_cm=data.height_cm,
             start_weight_kg=data.current_weight_kg,
@@ -223,10 +237,20 @@ def login(
     try:
         user = db.query(User).filter(User.username == data.username).first()
         
-        # DEBUG (как вы просили)
-        print(f"DEBUG: Login attempt for user: {data.username}")
-        match = pwd_context.verify(data.password, user.password) if user else False
-        print(f"DEBUG: Password match result: {match}")
+        # Robust password verification with fallback for plain-text migraton
+        match = False
+        if user:
+            # Проверяем через bcrypt напрямую
+            match = _verify_password(data.password, user.password)
+            if not match:
+                # Fallback: проверка plain-text пароля (миграция старых аккаунтов)
+                if data.password == user.password:
+                    match = True
+                    user.password = _hash_password(data.password)
+                    db.commit()
+                    print(f"DEBUG: Password for {user.username} migrated to hash")
+        
+        print(f"DEBUG: Login match result: {match}")
 
         if not user or not match:
             return JSONResponse({"status": "error", "message": "Invalid login or password"}, status_code=401)
