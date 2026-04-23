@@ -155,7 +155,7 @@ def home(request: Request, db: Session = Depends(get_db)):
     user = get_current_user(request, db)
     
     if not user:
-        return templates.TemplateResponse("index.html", {
+        return templates.TemplateResponse(request=request, name="index.html", context={
             "request": request, 
             "user": None,
             "pct": 0,
@@ -177,8 +177,9 @@ def home(request: Request, db: Session = Depends(get_db)):
     )
 
     return templates.TemplateResponse(
-        "index.html",
-        {
+        request=request,
+        name="index.html",
+        context={
             "request": request,
             "user": user,
             "pct": pct,
@@ -498,8 +499,9 @@ def admin_panel(request: Request, db: Session = Depends(get_db)):
     """Admin dashboard to manage users."""
     users = db.query(User).order_by(User.id.desc()).all()
     return templates.TemplateResponse(
-        "admin.html",
-        {
+        request=request,
+        name="admin.html",
+        context={
             "request": request,
             "users": users,
         },
