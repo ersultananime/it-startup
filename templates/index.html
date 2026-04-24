@@ -514,22 +514,26 @@
               }
             });
 
-            // Center model automatically
+            // Center model automatically and lower it
             const box = new THREE.Box3().setFromObject(model);
             const center = box.getCenter(new THREE.Vector3());
             const size = box.getSize(new THREE.Vector3());
             
-            // Offset model so its center is at (0,0,0) locally
-            model.position.set(-center.x, -center.y, -center.z);
+            // Offset model down so it doesn't overlap with inputs
+            model.position.set(-center.x, -center.y - (size.y * 0.35), -center.z);
             
             bodyMesh = model;
 
-            // Debug: Check for morph targets
+            // Heuristic to fix "4 arms": only keep one mesh with morph targets visible
+            let morphMeshCount = 0;
             model.traverse(child => {
               if (child.isMesh && child.morphTargetInfluences) {
-                console.log("Found mesh with morph targets:", child.name);
-                console.log("Morph Target Dictionary:", child.morphTargetDictionary);
-                console.log("Morph Target Influences Count:", child.morphTargetInfluences.length);
+                morphMeshCount++;
+                console.log(`Found morph mesh #${morphMeshCount}: "${child.name}"`);
+                if (morphMeshCount > 1) {
+                  console.log(`Hiding redundant mesh: "${child.name}"`);
+                  child.visible = false;
+                }
               }
             });
 
