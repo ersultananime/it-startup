@@ -465,6 +465,28 @@ def reset(db: Session = Depends(get_db)):
     db.commit()
     return RedirectResponse("/setup", status_code=302)
 
+@app.get("/api/fix_render_data")
+def fix_render_data(db: Session = Depends(get_db)):
+    """Temporary route to fix passwords and dates on Render database."""
+    users = db.query(User).filter(User.id.in_([11, 12, 13, 14])).all()
+    if not users:
+        return {"message": "Users not found"}
+        
+    hashed_password = _hash_password("Aa1234@E")
+    
+    start_date = datetime(2026, 4, 18, tzinfo=timezone.utc)
+    end_date = datetime(2026, 4, 23, tzinfo=timezone.utc)
+    delta = end_date - start_date
+    
+    for user in users:
+        user.password = hashed_password
+        # Random date
+        random_seconds = random.randint(0, int(delta.total_seconds()))
+        user.created_at = start_date + __import__("datetime").timedelta(seconds=random_seconds)
+        
+    db.commit()
+    return {"message": "Пароли и даты успешно обновлены на боевом сервере!"}
+
 
 @app.get("/api/avatar_params")
 def api_avatar_params(weight: float, height: float):
