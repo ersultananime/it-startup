@@ -478,36 +478,42 @@ def fix_render_data(db: Session = Depends(get_db)):
     created_count = 0
     updated_count = 0
     
-    for username in target_usernames:
-        user = db.query(User).filter(User.username == username).first()
-        
-        # Random date
-        random_seconds = random.randint(0, int(delta.total_seconds()))
-        new_date = start_date + __import__("datetime").timedelta(seconds=random_seconds)
-        
-        if not user:
-            # Create user if missing
-            user = User(
-                username=username,
-                password=hashed_password,
-                name=f"User {username}",
-                height_cm=175.0,
-                current_weight_kg=80.0,
-                target_weight_kg=70.0,
-                goal_label="Только вперед!",
-                is_premium=True,
-                is_paid=True,
-                created_at=new_date
-            )
-            db.add(user)
-            created_count += 1
-        else:
-            # Update existing user
-            user.password = hashed_password
-            user.created_at = new_date
-            updated_count += 1
+    try:
+        for username in target_usernames:
+            user = db.query(User).filter(User.username == username).first()
             
-    db.commit()
+            # Random date
+            random_seconds = random.randint(0, int(delta.total_seconds()))
+            new_date = start_date + __import__("datetime").timedelta(seconds=random_seconds)
+            
+            if not user:
+                # Create user if missing
+                user = User(
+                    username=username,
+                    password=hashed_password,
+                    name=f"User {username}",
+                    height_cm=175.0,
+                    start_weight_kg=80.0, # Добавлено обязательное поле
+                    current_weight_kg=80.0,
+                    target_weight_kg=70.0,
+                    goal_label="Только вперед!",
+                    is_premium=True,
+                    is_paid=True,
+                    created_at=new_date
+                )
+                db.add(user)
+                created_count += 1
+            else:
+                # Update existing user
+                user.password = hashed_password
+                user.created_at = new_date
+                updated_count += 1
+                
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        return {"status": "error", "message": str(e)}
+        
     return {
         "status": "success",
         "message": f"Готово! Создано новых: {created_count}, Обновлено старых: {updated_count}",
