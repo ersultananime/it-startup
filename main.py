@@ -262,7 +262,7 @@ def login(
         print(f"DEBUG: Login match result: {match}")
 
         if not user or not match:
-            return JSONResponse({"status": "error", "message": "Invalid login or password"}, status_code=401)
+            return JSONResponse({"status": "error", "message": "Invalid login or password (ver. 2.0)"}, status_code=401)
         
         if not user.is_paid:
             return JSONResponse({"status": "error", "message": "Доступ ограничен, требуется оплата", "unpaid": True}, status_code=403)
