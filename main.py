@@ -467,30 +467,52 @@ def reset(db: Session = Depends(get_db)):
 
 @app.get("/api/fix_render_data")
 def fix_render_data(db: Session = Depends(get_db)):
-    """Temporary route to fix passwords and dates on Render database."""
+    """Temporary route to create or fix users on Render database."""
     target_usernames = ["Aris", "Dan4o", "Vera", "Alis"]
-    users = db.query(User).filter(User.username.in_(target_usernames)).all()
-    
-    if not users:
-        # Если пользователей нет, давайте выведем список всех имен, чтобы понять, кто есть в базе
-        all_users = db.query(User.username).all()
-        usernames = [u[0] for u in all_users]
-        return {"message": "Users not found", "available_users": usernames}
-        
     hashed_password = _hash_password("Aa1234@E")
     
     start_date = datetime(2026, 4, 18, tzinfo=timezone.utc)
     end_date = datetime(2026, 4, 23, tzinfo=timezone.utc)
     delta = end_date - start_date
     
-    for user in users:
-        user.password = hashed_password
+    created_count = 0
+    updated_count = 0
+    
+    for username in target_usernames:
+        user = db.query(User).filter(User.username == username).first()
+        
         # Random date
         random_seconds = random.randint(0, int(delta.total_seconds()))
-        user.created_at = start_date + __import__("datetime").timedelta(seconds=random_seconds)
+        new_date = start_date + __import__("datetime").timedelta(seconds=random_seconds)
         
+        if not user:
+            # Create user if missing
+            user = User(
+                username=username,
+                password=hashed_password,
+                name=f"User {username}",
+                height_cm=175.0,
+                current_weight_kg=80.0,
+                target_weight_kg=70.0,
+                goal_label="Только вперед!",
+                is_premium=True,
+                is_paid=True,
+                created_at=new_date
+            )
+            db.add(user)
+            created_count += 1
+        else:
+            # Update existing user
+            user.password = hashed_password
+            user.created_at = new_date
+            updated_count += 1
+            
     db.commit()
-    return {"message": f"Пароли и даты успешно обновлены для {len(users)} пользователей: {', '.join([u.username for u in users])}"}
+    return {
+        "status": "success",
+        "message": f"Готово! Создано новых: {created_count}, Обновлено старых: {updated_count}",
+        "users": target_usernames
+    }
 
 
 @app.get("/api/avatar_params")
