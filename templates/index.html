@@ -429,7 +429,7 @@
 
       function loadHumanModel() {
         const loader = new THREE.GLTFLoader();
-        loader.load('/static/realistic_man_morphed.glb', function(gltf) {
+        loader.load('/static/model.glb', function(gltf) {
           const model = gltf.scene;
           
           model.traverse((child) => {
