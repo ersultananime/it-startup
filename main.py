@@ -155,7 +155,7 @@ def home(request: Request, db: Session = Depends(get_db)):
     user = get_current_user(request, db)
     
     if not user:
-        return templates.TemplateResponse(request=request, name="index.html", context={
+        resp = templates.TemplateResponse(request=request, name="index.html", context={
             "request": request, 
             "user": None,
             "pct": 0,
@@ -164,6 +164,10 @@ def home(request: Request, db: Session = Depends(get_db)):
             "motivation": "",
             "logs": []
         })
+        resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        resp.headers["Pragma"] = "no-cache"
+        resp.headers["Expires"] = "0"
+        return resp
 
     pct = calculate_progress(user.start_weight_kg, user.current_weight_kg, user.target_weight_kg)
     bmi = calculate_bmi(user.current_weight_kg, user.height_cm)
@@ -176,7 +180,7 @@ def home(request: Request, db: Session = Depends(get_db)):
         .all()
     )
 
-    return templates.TemplateResponse(
+    response = templates.TemplateResponse(
         request=request,
         name="index.html",
         context={
@@ -189,6 +193,10 @@ def home(request: Request, db: Session = Depends(get_db)):
             "logs": logs,
         },
     )
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    return response
 
 
 @app.post("/api/register")
