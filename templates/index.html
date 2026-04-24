@@ -470,7 +470,7 @@
               if (child.isMesh && child.morphTargetInfluences) {
                 const weightInf = Math.max(0, Math.min(1, (w - 60) / 60));
                 const heightInf = Math.max(0, Math.min(1, (h - 160) / 40));
-                
+
                 console.log(`Updating mesh ${child.name}: weightInf=${weightInf}, heightInf=${heightInf}`);
 
                 if (child.morphTargetDictionary) {
@@ -514,9 +514,16 @@
               }
             });
 
-            model.position.set(0, -1.0, 4);
-            bodyMesh = model;
+            // Center model automatically
+            const box = new THREE.Box3().setFromObject(model);
+            const center = box.getCenter(new THREE.Vector3());
+            const size = box.getSize(new THREE.Vector3());
             
+            // Offset model so its center is at (0,0,0) locally
+            model.position.set(-center.x, -center.y, -center.z);
+            
+            bodyMesh = model;
+
             // Debug: Check for morph targets
             model.traverse(child => {
               if (child.isMesh && child.morphTargetInfluences) {
@@ -527,12 +534,18 @@
             });
 
             modelGroup.add(model);
+            modelGroup.position.set(0, 0, 0); 
 
             {% if is_premium %}
             const goldenLight = new THREE.PointLight(0xffd700, 2.0, 5);
-            goldenLight.position.set(0, 1, 2);
+            goldenLight.position.set(0, 0, 0);
             modelGroup.add(goldenLight);
             {% endif %}
+
+            // Adjust camera to fit model size
+            const maxDim = Math.max(size.x, size.y, size.z);
+            camera.position.set(0, 0, maxDim * 2.2);
+            camera.lookAt(0, 0, 0);
 
             window.onLivePreview();
           });
