@@ -117,6 +117,49 @@ def get_motivation(pct: float) -> str:
 # ── FastAPI App ───────────────────────────────────────────────────────────────
 app = FastAPI(title="Step by Step")
 
+def seed_database(db: Session):
+    """Seed the database with initial test users."""
+    target_usernames = ["Aris", "Dan4o", "Vera", "Alis"]
+    hashed_password = _hash_password("Aa1234@E")
+    
+    start_date = datetime(2026, 4, 18, tzinfo=timezone.utc)
+    end_date = datetime(2026, 4, 23, tzinfo=timezone.utc)
+    delta = end_date - start_date
+    
+    for username in target_usernames:
+        user = db.query(User).filter(User.username == username).first()
+        
+        # Random date
+        random_seconds = random.randint(0, int(delta.total_seconds()))
+        new_date = start_date + __import__("datetime").timedelta(seconds=random_seconds)
+        
+        if not user:
+            user = User(
+                username=username,
+                password=hashed_password,
+                name=f"User {username}",
+                height_cm=175.0,
+                start_weight_kg=80.0,
+                current_weight_kg=80.0,
+                target_weight_kg=70.0,
+                goal_label="Только вперед!",
+                is_premium=True,
+                is_paid=True,
+                created_at=new_date
+            )
+            db.add(user)
+    db.commit()
+
+@app.on_event("startup")
+def on_startup():
+    from database import SessionLocal
+    db = SessionLocal()
+    try:
+        seed_database(db)
+        print("DEBUG: Database auto-seeded on startup")
+    finally:
+        db.close()
+
 app.add_middleware(
     CORSMiddleware,
     allow_origin_regex=".*",
@@ -467,58 +510,17 @@ def reset(db: Session = Depends(get_db)):
 
 @app.get("/api/fix_render_data")
 def fix_render_data(db: Session = Depends(get_db)):
-    """Temporary route to create or fix users on Render database."""
-    target_usernames = ["Aris", "Dan4o", "Vera", "Alis"]
-    hashed_password = _hash_password("Aa1234@E")
-    
-    start_date = datetime(2026, 4, 18, tzinfo=timezone.utc)
-    end_date = datetime(2026, 4, 23, tzinfo=timezone.utc)
-    delta = end_date - start_date
-    
-    created_count = 0
-    updated_count = 0
-    
+    """Temporary route to force create or fix users on Render database."""
     try:
-        for username in target_usernames:
-            user = db.query(User).filter(User.username == username).first()
-            
-            # Random date
-            random_seconds = random.randint(0, int(delta.total_seconds()))
-            new_date = start_date + __import__("datetime").timedelta(seconds=random_seconds)
-            
-            if not user:
-                # Create user if missing
-                user = User(
-                    username=username,
-                    password=hashed_password,
-                    name=f"User {username}",
-                    height_cm=175.0,
-                    start_weight_kg=80.0, # Добавлено обязательное поле
-                    current_weight_kg=80.0,
-                    target_weight_kg=70.0,
-                    goal_label="Только вперед!",
-                    is_premium=True,
-                    is_paid=True,
-                    created_at=new_date
-                )
-                db.add(user)
-                created_count += 1
-            else:
-                # Update existing user
-                user.password = hashed_password
-                user.created_at = new_date
-                updated_count += 1
-                
-        db.commit()
+        seed_database(db)
+        return {
+            "status": "success",
+            "message": "База данных успешно обновлена / заполнена!",
+            "users": ["Aris", "Dan4o", "Vera", "Alis"]
+        }
     except Exception as e:
         db.rollback()
         return {"status": "error", "message": str(e)}
-        
-    return {
-        "status": "success",
-        "message": f"Готово! Создано новых: {created_count}, Обновлено старых: {updated_count}",
-        "users": target_usernames
-    }
 
 
 @app.get("/api/avatar_params")
