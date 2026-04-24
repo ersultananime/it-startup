@@ -119,7 +119,7 @@ app = FastAPI(title="Step by Step")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origin_regex=".*",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -245,10 +245,10 @@ def login(
     """Login and set session cookie."""
     try:
         user = db.query(User).filter(User.username == data.username).first()
-        
-        # Robust password verification with fallback for plain-text migraton
+        print(f"DEBUG: Received username: '{data.username}', password: '{data.password}'")
         match = False
         if user:
+            print(f"DEBUG: Found user: '{user.username}', stored hash: '{user.password}'")
             # Проверяем через bcrypt напрямую
             match = _verify_password(data.password, user.password)
             if not match:
