@@ -463,11 +463,15 @@
           const w = parseFloat(wInput.value);
           const h = parseFloat(hInput.value);
 
+          console.log(`LivePreview update: weight=${w}, height=${h}`);
+
           if (w && h && bodyMesh) {
             bodyMesh.traverse((child) => {
               if (child.isMesh && child.morphTargetInfluences) {
                 const weightInf = Math.max(0, Math.min(1, (w - 60) / 60));
                 const heightInf = Math.max(0, Math.min(1, (h - 160) / 40));
+                
+                console.log(`Updating mesh ${child.name}: weightInf=${weightInf}, heightInf=${heightInf}`);
 
                 if (child.morphTargetDictionary) {
                   if (child.morphTargetDictionary['Weight'] !== undefined) {
@@ -510,8 +514,18 @@
               }
             });
 
-            model.position.set(0, -1.2, 0);
+            model.position.set(0, -1.0, 4);
             bodyMesh = model;
+            
+            // Debug: Check for morph targets
+            model.traverse(child => {
+              if (child.isMesh && child.morphTargetInfluences) {
+                console.log("Found mesh with morph targets:", child.name);
+                console.log("Morph Target Dictionary:", child.morphTargetDictionary);
+                console.log("Morph Target Influences Count:", child.morphTargetInfluences.length);
+              }
+            });
+
             modelGroup.add(model);
 
             {% if is_premium %}
