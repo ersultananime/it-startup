@@ -491,7 +491,7 @@
         
         try {
           const formData = new FormData(form);
-          const response = await fetch('http://127.0.0.1:8000/update_weight', {
+          const response = await fetch('/update_weight', {
             method: 'POST',
             body: formData,
             headers: { 'Accept': 'application/json' }
@@ -570,7 +570,7 @@
         const container = document.getElementById('leaderboardContainer');
         if (!container) return;
         try {
-          const res = await fetch('http://127.0.0.1:8000/leaderboard');
+          const res = await fetch('/leaderboard');
           if (res.ok) {
             const data = await res.json();
             container.innerHTML = '';
@@ -748,7 +748,7 @@
       const errorMsg = document.getElementById('authError');
       const btn = form.querySelector('button');
       
-      const API_BASE = 'http://127.0.0.1:8000';
+      const API_BASE = '';
       const absoluteUrl = url.startsWith('http') ? url : (API_BASE + url);
 
       btn.disabled = true;
@@ -761,6 +761,7 @@
           headers: {
             'Content-Type': 'application/json'
           },
+          credentials: 'include',
           body: JSON.stringify(dataObj)
         });
         
@@ -837,7 +838,7 @@
     }
 
     async function activatePremium() {
-      const res = await fetch('http://127.0.0.1:8000/api/checkout', { method: 'POST' });
+      const res = await fetch('/api/checkout', { method: 'POST' });
       if (res.ok) {
         window.location.reload();
       }
@@ -864,7 +865,7 @@
       formData.append('message', msg);
       
       try {
-        const res = await fetch('http://127.0.0.1:8000/api/ai_chat', { method: 'POST', body: formData });
+        const res = await fetch('/api/ai_chat', { method: 'POST', body: formData });
         const data = await res.json();
         
         if (data.response) {

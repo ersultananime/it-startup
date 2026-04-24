@@ -223,7 +223,7 @@ def register(
         db.refresh(user)
         
         response = JSONResponse({"status": "success", "message": "Registered successfully"})
-        response.set_cookie(key="session_id", value=str(user.id), httponly=True)
+        response.set_cookie(key="session_id", value=str(user.id), httponly=True, max_age=2592000, samesite="lax")
         return response
     except Exception as e:
         return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
@@ -260,7 +260,7 @@ def login(
             return JSONResponse({"status": "error", "message": "Доступ ограничен, требуется оплата", "unpaid": True}, status_code=403)
         
         response = JSONResponse({"status": "success", "message": "Welcome"})
-        response.set_cookie(key="session_id", value=str(user.id), httponly=True)
+        response.set_cookie(key="session_id", value=str(user.id), httponly=True, max_age=2592000, samesite="lax")
         return response
     except Exception as e:
         return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
