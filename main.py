@@ -468,9 +468,14 @@ def reset(db: Session = Depends(get_db)):
 @app.get("/api/fix_render_data")
 def fix_render_data(db: Session = Depends(get_db)):
     """Temporary route to fix passwords and dates on Render database."""
-    users = db.query(User).filter(User.id.in_([11, 12, 13, 14])).all()
+    target_usernames = ["Aris", "Dan4o", "Vera", "Alis"]
+    users = db.query(User).filter(User.username.in_(target_usernames)).all()
+    
     if not users:
-        return {"message": "Users not found"}
+        # Если пользователей нет, давайте выведем список всех имен, чтобы понять, кто есть в базе
+        all_users = db.query(User.username).all()
+        usernames = [u[0] for u in all_users]
+        return {"message": "Users not found", "available_users": usernames}
         
     hashed_password = _hash_password("Aa1234@E")
     
@@ -485,7 +490,7 @@ def fix_render_data(db: Session = Depends(get_db)):
         user.created_at = start_date + __import__("datetime").timedelta(seconds=random_seconds)
         
     db.commit()
-    return {"message": "Пароли и даты успешно обновлены на боевом сервере!"}
+    return {"message": f"Пароли и даты успешно обновлены для {len(users)} пользователей: {', '.join([u.username for u in users])}"}
 
 
 @app.get("/api/avatar_params")
