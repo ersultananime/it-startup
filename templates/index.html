@@ -454,8 +454,6 @@
         const modelGroup = new THREE.Group();
         scene.add(modelGroup);
 
-        let bodyMesh = null;
-
         window.onLivePreview = function () {
           const wInput = document.getElementById('weight');
           const hInput = document.getElementById('height');
@@ -468,15 +466,21 @@
                 const weightInf = Math.max(0, Math.min(1, (w - 60) / 60));
                 const heightInf = Math.max(0, Math.min(1, (h - 160) / 40));
 
-                if (child.morphTargetDictionary) {
-                  if (child.morphTargetDictionary['Weight'] !== undefined) {
-                    child.morphTargetInfluences[child.morphTargetDictionary['Weight']] = weightInf;
+                const dict = child.morphTargetDictionary;
+                if (dict) {
+                  // Ищем морфы (регистронезависимо)
+                  for (const key in dict) {
+                    const k = key.toLowerCase();
+                    if (k === 'weight' || k === 'fat' || k === 'heavy') {
+                      child.morphTargetInfluences[dict[key]] = weightInf;
+                    }
+                    if (k === 'height' || k === 'tall' || k === 'scale') {
+                      child.morphTargetInfluences[dict[key]] = heightInf;
+                    }
                   }
-                  if (child.morphTargetDictionary['Height'] !== undefined) {
-                    child.morphTargetInfluences[child.morphTargetDictionary['Height']] = heightInf;
-                  }
-                } else {
-                  if (child.morphTargetInfluences.length > 0) child.morphTargetInfluences[0] = weightInf;
+                } else if (child.morphTargetInfluences.length > 0) {
+                  // Запасной вариант по индексам
+                  child.morphTargetInfluences[0] = weightInf;
                   if (child.morphTargetInfluences.length > 1) child.morphTargetInfluences[1] = heightInf;
                 }
               }
@@ -489,7 +493,8 @@
           loader.load('/static/model.glb', function (gltf) {
             const model = gltf.scene;
 
-            // Настройка материалов и фильтрация мешей
+            const seenMorphGroups = new Set();
+
             model.traverse((child) => {
               if (child.isMesh) {
                 child.castShadow = true;
@@ -497,28 +502,33 @@
                 
                 const name = child.name.toLowerCase();
                 
-                // 1. Убираем статические "трубы" (руки в T-позе без морфов)
-                if ((name.includes('arm') || name.includes('hand')) && !child.morphTargetInfluences) {
-                  child.visible = false;
-                  return;
+                // 1. Скрываем всё, что явно помечено как лишние руки
+                if ((name.includes('arm') || name.includes('hand')) && name.includes('00')) {
+                   // Обычно дубликаты имеют индексы .001, _002 и т.д.
+                   child.visible = false;
+                   return;
                 }
 
-                // 2. Если это меш тела (Plane004), но без морфов - это лишний статический дубликат
-                if (name.includes('plane004') && !child.morphTargetInfluences) {
-                  child.visible = false;
-                  return;
-                }
-
-                // 3. Показываем штаны, волосы, глаза и морфящиеся части тела
-                if (name.includes('pants') || name.includes('hair') || name.includes('eye') || child.morphTargetInfluences) {
+                // 2. Умная фильтрация дубликатов тела
+                if (child.morphTargetInfluences) {
+                  // Группируем по набору морфов
+                  const morphs = Object.keys(child.morphTargetDictionary || {}).sort().join('|');
+                  if (seenMorphGroups.has(morphs) && (name.includes('plane') || name.includes('body'))) {
+                    child.visible = false;
+                    return;
+                  }
+                  seenMorphGroups.add(morphs);
                   child.visible = true;
                 }
 
-                // Оставляем оригинальный материал для поддержки морфов
+                // 3. Штаны, волосы, глаза - всегда показываем
+                if (name.includes('pants') || name.includes('hair') || name.includes('eye')) {
+                  child.visible = true;
+                }
+
                 if (child.material) {
                   child.material.metalness = 0.1;
                   child.material.roughness = 0.4;
-                  
                   {% if is_premium %}
                   child.material.emissive = new THREE.Color(0x3d2b00);
                   child.material.metalness = 0.8;
@@ -529,8 +539,6 @@
             });
             
             bodyMesh = model;
-
-            // Центрируем модель
             const box = new THREE.Box3().setFromObject(model);
             const center = box.getCenter(new THREE.Vector3());
             const size = box.getSize(new THREE.Vector3());
@@ -544,7 +552,6 @@
             modelGroup.add(goldenLight);
             {% endif %}
 
-            // Adjust camera to fit model size
             const maxDim = Math.max(size.x, size.y, size.z);
             camera.position.set(0, 0, maxDim * 2.2);
             camera.lookAt(0, 0, 0);
