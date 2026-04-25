@@ -493,8 +493,6 @@
           loader.load('/static/model.glb', function (gltf) {
             const model = gltf.scene;
 
-            const seenMorphGroups = new Set();
-
             model.traverse((child) => {
               if (child.isMesh) {
                 child.castShadow = true;
@@ -502,23 +500,12 @@
                 
                 const name = child.name.toLowerCase();
                 
-                // 1. Скрываем всё, что явно помечено как лишние руки
-                if ((name.includes('arm') || name.includes('hand')) && name.includes('00')) {
-                   // Обычно дубликаты имеют индексы .001, _002 и т.д.
-                   child.visible = false;
-                   return;
-                }
+                // 1. По умолчанию всё видимо
+                child.visible = true;
 
-                // 2. Умная фильтрация дубликатов тела
-                if (child.morphTargetInfluences) {
-                  // Группируем по набору морфов
-                  const morphs = Object.keys(child.morphTargetDictionary || {}).sort().join('|');
-                  if (seenMorphGroups.has(morphs) && (name.includes('plane') || name.includes('body'))) {
-                    child.visible = false;
-                    return;
-                  }
-                  seenMorphGroups.add(morphs);
-                  child.visible = true;
+                // 2. Скрываем только лишние руки (дубликаты или без морфов)
+                if ((name.includes('arm') || name.includes('hand')) && (name.includes('00') || !child.morphTargetInfluences)) {
+                   child.visible = false;
                 }
 
                 // 3. Штаны, волосы, глаза - всегда показываем
