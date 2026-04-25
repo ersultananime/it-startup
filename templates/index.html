@@ -406,8 +406,54 @@
 
     </div>
 
-    <!-- Animate bar on load -->
+    <!-- 3D Model Script -->
     <script>
+      let bodyMesh = null;
+
+      // Глобальная функция превью
+      window.onLivePreview = function () {
+        const wInput = document.getElementById('weight');
+        const hInput = document.getElementById('height');
+        if (!wInput || !hInput || !bodyMesh) return;
+        
+        const w = parseFloat(wInput.value);
+        const h = parseFloat(hInput.value);
+
+        if (w && h) {
+          bodyMesh.traverse((child) => {
+            if (child.isMesh && child.morphTargetInfluences) {
+              const dict = child.morphTargetDictionary;
+              const weightFactor = (w - 60) / 60;
+              const heightFactor = (h - 160) / 40;
+
+              if (dict) {
+                for (const key in dict) {
+                  const k = key.toLowerCase();
+                  const idx = dict[key];
+                  if (k.includes('weight') || k.includes('fat') || k.includes('heavy') || k.includes('body_fat') || k.includes('mass')) {
+                    child.morphTargetInfluences[idx] = Math.max(0, Math.min(1, weightFactor));
+                  }
+                  if (k.includes('thin') || k.includes('skinny') || k.includes('slim')) {
+                    child.morphTargetInfluences[idx] = Math.max(0, Math.min(1, -weightFactor));
+                  }
+                  if (k.includes('height') || k.includes('tall') || k.includes('scale_y') || k.includes('size_y')) {
+                    child.morphTargetInfluences[idx] = Math.max(0, Math.min(1, heightFactor));
+                  }
+                  if (k.includes('short') || k.includes('small')) {
+                    child.morphTargetInfluences[idx] = Math.max(0, Math.min(1, -heightFactor));
+                  }
+                }
+              } else if (child.morphTargetInfluences.length > 0) {
+                child.morphTargetInfluences[0] = Math.max(0, Math.min(1, weightFactor));
+                if (child.morphTargetInfluences.length > 1) {
+                  child.morphTargetInfluences[1] = Math.max(0, Math.min(1, heightFactor));
+                }
+              }
+            }
+          });
+        }
+      }
+
       window.addEventListener('DOMContentLoaded', () => {
         const bar = document.getElementById('progressBar');
         if (bar) {
@@ -421,6 +467,8 @@
         }
 
         const container = document.getElementById('three-container');
+        if (!container) return;
+
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0xf0fdf8);
 
@@ -454,48 +502,6 @@
         const modelGroup = new THREE.Group();
         scene.add(modelGroup);
 
-        window.onLivePreview = function () {
-          const wInput = document.getElementById('weight');
-          const hInput = document.getElementById('height');
-          const w = parseFloat(wInput.value);
-          const h = parseFloat(hInput.value);
-
-          if (w && h && bodyMesh) {
-            bodyMesh.traverse((child) => {
-              if (child.isMesh && child.morphTargetInfluences) {
-                const dict = child.morphTargetDictionary;
-                if (!dict) return;
-
-                // Факторы изменений (относительно базы: вес 60, рост 160)
-                const weightFactor = (w - 60) / 60;
-                const heightFactor = (h - 160) / 40;
-
-                for (const key in dict) {
-                  const k = key.toLowerCase();
-                  const idx = dict[key];
-
-                  // 1. Вес и полнота
-                  if (k.includes('weight') || k.includes('fat') || k.includes('heavy') || k.includes('body_fat') || k.includes('mass')) {
-                    child.morphTargetInfluences[idx] = Math.max(0, Math.min(1, weightFactor));
-                  }
-                  // 2. Худоба (инвертированный вес)
-                  if (k.includes('thin') || k.includes('skinny') || k.includes('slim')) {
-                    child.morphTargetInfluences[idx] = Math.max(0, Math.min(1, -weightFactor));
-                  }
-                  // 3. Рост
-                  if (k.includes('height') || k.includes('tall') || k.includes('scale_y') || k.includes('size_y')) {
-                    child.morphTargetInfluences[idx] = Math.max(0, Math.min(1, heightFactor));
-                  }
-                  // 4. Низкий рост
-                  if (k.includes('short') || k.includes('small')) {
-                    child.morphTargetInfluences[idx] = Math.max(0, Math.min(1, -heightFactor));
-                  }
-                }
-              }
-            });
-          }
-        }
-
         function loadHumanModel() {
           const loader = new THREE.GLTFLoader();
           loader.load('/static/model.glb', function (gltf) {
@@ -507,21 +513,20 @@
                 child.receiveShadow = true;
                 
                 const name = child.name.toLowerCase();
-                
-                // 1. По умолчанию всё видимо
                 child.visible = true;
 
-                // 2. Скрываем только лишние руки (дубликаты или без морфов)
+                // Скрываем дубликаты рук
                 if ((name.includes('arm') || name.includes('hand')) && (name.includes('00') || !child.morphTargetInfluences)) {
                    child.visible = false;
                 }
 
-                // 3. Штаны, волосы, глаза - всегда показываем
                 if (name.includes('pants') || name.includes('hair') || name.includes('eye')) {
                   child.visible = true;
                 }
 
                 if (child.material) {
+                  // Явно включаем поддержку морфов в материале
+                  child.material.morphTargets = true;
                   child.material.metalness = 0.1;
                   child.material.roughness = 0.4;
                   {% if is_premium %}
@@ -570,7 +575,6 @@
           renderer.setSize(container.clientWidth, container.clientHeight);
         });
 
-
         // Form submit via AJAX
         const form = document.getElementById('logForm');
         const btn = form?.querySelector('button[type=submit]');
@@ -589,8 +593,7 @@
             if (!response.ok) { window.location.href = '/setup'; return; }
 
             const data = await response.json();
-            // Live preview is now linked directly to input fields, 
-            // but if we submit, let's update preview fields and body shape just in case
+            // Update preview fields and body shape
             const wInput = document.getElementById('weight');
             if (wInput) wInput.value = data.current_weight;
             window.onLivePreview();
@@ -607,9 +610,7 @@
             document.documentElement.style.setProperty('--bar-width', barWidth);
             document.documentElement.style.setProperty('--bar-deg', (newPct * 3.6) + 'deg');
 
-            // Update texts
             document.getElementById('pctText').textContent = newPct + '%';
-
             const bmiText = document.querySelector('span.text-sky-500');
             if (bmiText) bmiText.textContent = data.bmi;
 
@@ -624,7 +625,6 @@
               remainEl.textContent = 'Осталось: ' + rem.toFixed(1) + ' кг';
             }
 
-            // Inject new log
             const logsContainer = document.getElementById('logsContainer');
             if (logsContainer) {
               const rowHTML = `
@@ -645,8 +645,6 @@
             </div>`;
               logsContainer.insertAdjacentHTML('afterbegin', rowHTML);
             }
-
-            // Reset form
             form.reset();
           } catch (e) { console.error(e); }
           finally {
@@ -696,7 +694,6 @@
           }
         }
         loadLeaderboard();
-
       });
     </script>
 
@@ -737,10 +734,9 @@
             </button>
           </form>
 
-          <!-- Register Form (Hidden by default) -->
+          <!-- Register Form -->
           <form id="registerForm" class="space-y-4 hidden" onsubmit="handleAuth(event, '/api/register')">
             <h3 class="text-xl font-bold text-slate-800 mb-2 text-center">Создать аккаунт 🚀</h3>
-
             <div class="grid grid-cols-2 gap-3">
               <div>
                 <label class="block text-xs font-bold text-slate-500 uppercase mb-1.2">Логин</label>
@@ -755,14 +751,12 @@
                   placeholder="••••••••">
               </div>
             </div>
-
             <div>
               <label class="block text-xs font-bold text-slate-500 uppercase mb-1.2">Ваше имя</label>
               <input name="name" type="text" required
                 class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-400 focus:outline-none text-sm"
                 placeholder="Владислав">
             </div>
-
             <div class="grid grid-cols-2 gap-3">
               <div>
                 <label class="block text-xs font-bold text-slate-500 uppercase mb-1.2">Рост (см)</label>
@@ -771,13 +765,12 @@
                   value="175">
               </div>
               <div>
-                <label class="block text-xs font-bold text-slate-500 uppercase mb-1.2">Текущий вес (кг)</label>
+                <label class="block text-xs font-bold text-slate-500 uppercase mb-1.2">Вес (кг)</label>
                 <input name="current_weight_kg" type="number" step="0.1" required
                   class="w-full px-3 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-400 focus:outline-none text-sm"
                   value="85">
               </div>
             </div>
-
             <div class="grid grid-cols-2 gap-3">
               <div>
                 <label class="block text-xs font-bold text-slate-500 uppercase mb-1.2">Цель (кг)</label>
@@ -792,24 +785,19 @@
                   value="Только вперед!">
               </div>
             </div>
-
             <div class="payment-section space-y-2">
               <p class="text-sm font-bold text-slate-700">💳 Оплата регистрации</p>
               <p class="text-[13px] text-slate-600 leading-relaxed">
-                Для завершения регистрации переведите <span class="font-black text-green-600">500 ₸</span> на Kaspi по
-                номеру:
+                Для завершения переведите <span class="font-black text-green-600">500 ₸</span> на Kaspi:
                 <br>
                 <span class="font-mono font-bold text-base text-slate-800 tracking-tight">+7 777 669 50 72</span>
-                <span class="text-xs text-slate-400">(Ерсултан М.)</span>
               </p>
             </div>
-
-            <button type="submit" id="register-submit"
+            <button type="submit"
               class="w-full bg-gradient-to-r from-green-400 to-emerald-500 text-white py-3.5 rounded-xl font-bold shadow-lg shadow-emerald-200 hover:scale-[1.02] active:scale-[0.98] transition-all mt-4">
               Присоединиться 🏃‍♂️
             </button>
           </form>
-
           <p id="authError" class="text-xs text-red-500 text-center mt-4 font-medium hidden"></p>
         </div>
       </div>
@@ -822,9 +810,7 @@
         const tabLogin = document.getElementById('tab-login');
         const tabRegister = document.getElementById('tab-register');
         const errorMsg = document.getElementById('authError');
-
         errorMsg.classList.add('hidden');
-
         if (type === 'login') {
           loginForm.classList.remove('hidden');
           registerForm.classList.add('hidden');
@@ -843,71 +829,32 @@
         const form = event.target;
         const formData = new FormData(form);
         const dataObj = Object.fromEntries(formData.entries());
-
-        // Валидация длины пароля
         if (dataObj.password && dataObj.password.length > 50) {
           const errorMsg = document.getElementById('authError');
-          errorMsg.textContent = 'Пароль слишком длинный (макс. 50 символов)';
+          errorMsg.textContent = 'Пароль слишком длинный (макс. 50)';
           errorMsg.classList.remove('hidden');
           return;
         }
-
-        // Convert numeric fields for registration
         if (url.includes('register')) {
           ['height_cm', 'current_weight_kg', 'target_weight_kg'].forEach(key => {
             if (dataObj[key]) dataObj[key] = parseFloat(dataObj[key]);
           });
         }
-
         const errorMsg = document.getElementById('authError');
         const btn = form.querySelector('button');
-
-        const API_BASE = '';
-        const absoluteUrl = url.startsWith('http') ? url : (API_BASE + url);
-        console.log('Fetching:', absoluteUrl);
-
         btn.disabled = true;
-        btn.style.opacity = '0.7';
         errorMsg.classList.add('hidden');
-
         try {
-          const response = await fetch(absoluteUrl, {
+          const response = await fetch(url, {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(dataObj)
           });
-
-          let data;
-          try {
-            data = await response.json();
-          } catch (e) {
-            console.error('JSON Parse error:', e);
-            data = { status: 'error', message: 'Некорректный ответ сервера' };
-          }
-
-          console.log('Login Response:', data);
-
-          if (response.ok && data.status === 'success') {
-            window.location.reload();
-          } else {
-            errorMsg.textContent = data.message || 'Ошибка авторизации';
-            errorMsg.classList.remove('hidden');
-          }
-        } catch (err) {
-          console.error('Fetch error:', err);
-          errorMsg.textContent = 'Ошибка сети: не удалось связаться с сервером.';
-          errorMsg.classList.remove('hidden');
-        } finally {
-          btn.disabled = false;
-          btn.style.opacity = '1';
-        }
-      }
-
-      function validatePayment() {
-        // Logic removed as per user request
+          const data = await response.json();
+          if (response.ok && data.status === 'success') { window.location.reload(); }
+          else { errorMsg.textContent = data.message || 'Ошибка'; errorMsg.classList.remove('hidden'); }
+        } catch (err) { errorMsg.textContent = 'Ошибка сети'; errorMsg.classList.remove('hidden'); }
+        finally { btn.disabled = false; }
       }
     </script>
     {% endif %}
@@ -925,82 +872,40 @@
         </div>
         <div class="p-8 text-center">
           <h2 class="text-3xl font-black text-slate-800 mb-2">Step by Step Premium</h2>
-          <p class="text-slate-500 text-sm mb-8 italic">Достигайте целей в 2 раза быстрее с персональным ИИ!</p>
-
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8 text-left">
-            <div class="p-4 rounded-3xl bg-amber-50 border border-amber-100">
-              <div class="text-xl mb-1">🤖</div>
-              <h4 class="font-bold text-slate-800 text-xs uppercase mb-1">ИИ-Помощник</h4>
-              <p class="text-[11px] text-slate-500 leading-relaxed">Персональные советы по тренировкам и питанию
-                круглосуточно.</p>
-            </div>
-            <div class="p-4 rounded-3xl bg-sky-50 border border-sky-100">
-              <div class="text-xl mb-1">✨</div>
-              <h4 class="font-bold text-slate-800 text-xs uppercase mb-1">Эксклюзивный Вид</h4>
-              <p class="text-[11px] text-slate-500 leading-relaxed">Ваш 3D-аватар засияет золотым светом, подчеркивая
-                статус.</p>
-            </div>
-          </div>
-
           <button onclick="activatePremium()"
             class="w-full bg-gradient-to-r from-amber-400 to-orange-500 text-white py-4 rounded-2xl font-black shadow-xl shadow-amber-200 hover:scale-[1.02] active:scale-[0.98] transition-all mb-4">
             ПОДПИСАТЬСЯ (БЕСПЛАТНО ТЕСТ)
           </button>
-          <p class="text-[10px] text-slate-400">Это демонстрационный режим. Оплата не требуется.</p>
         </div>
       </div>
     </div>
 
     <script>
-      function openPremiumModal() {
-        document.getElementById('premiumModal').classList.remove('hidden');
-      }
-      function closePremiumModal() {
-        document.getElementById('premiumModal').classList.add('hidden');
-      }
-
+      function openPremiumModal() { document.getElementById('premiumModal').classList.remove('hidden'); }
+      function closePremiumModal() { document.getElementById('premiumModal').classList.add('hidden'); }
       async function activatePremium() {
         const res = await fetch('/api/checkout', { method: 'POST' });
-        if (res.ok) {
-          window.location.reload();
-        }
+        if (res.ok) { window.location.reload(); }
       }
-
       async function handleAIChat(event) {
         event.preventDefault();
         const input = document.getElementById('chat-input');
         const container = document.getElementById('chat-messages');
         const msg = input.value.trim();
         if (!msg) return;
-
-        // Add user message
-        container.insertAdjacentHTML('beforeend', `
-        <div class="bg-indigo-500 p-3 rounded-2xl rounded-tr-none text-white shadow-sm ml-auto max-w-[85%] text-right font-medium">
-          ${msg}
-        </div>
-      `);
+        container.insertAdjacentHTML('beforeend', `<div class="bg-indigo-500 p-3 rounded-2xl text-white ml-auto max-w-[85%] text-right">${msg}</div>`);
         input.value = '';
         container.scrollTop = container.scrollHeight;
-
-        // Fetch AI response
         const formData = new FormData();
         formData.append('message', msg);
-
         try {
           const res = await fetch('/api/ai_chat', { method: 'POST', body: formData });
           const data = await res.json();
-
           if (data.response) {
-            container.insertAdjacentHTML('beforeend', `
-            <div class="bg-white/80 p-3 rounded-2xl rounded-tl-none border border-slate-100 text-slate-600 shadow-sm leading-relaxed" style="animation: fadeUp 0.3s ease both;">
-              ${data.response}
-            </div>
-          `);
+            container.insertAdjacentHTML('beforeend', `<div class="bg-white/80 p-3 rounded-2xl border text-slate-600 shadow-sm">${data.response}</div>`);
             container.scrollTop = container.scrollHeight;
           }
-        } catch (e) {
-          console.error("AI Error:", e);
-        }
+        } catch (e) { console.error(e); }
       }
     </script>
 </body>
