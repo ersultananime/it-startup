@@ -539,9 +539,11 @@
                 const name = child.name.toLowerCase();
                 child.visible = true;
 
-                // Скрываем дубликаты рук
-                if ((name.includes('arm') || name.includes('hand')) && (name.includes('00') || !child.morphTargetInfluences)) {
-                   child.visible = false;
+                // Скрываем лишние руки: оставляем только те, что привязаны к скелету (SkinnedMesh)
+                if (name.includes('arm') || name.includes('hand')) {
+                   if (!child.isSkinnedMesh || name.includes('00')) {
+                      child.visible = false;
+                   }
                 }
 
                 if (name.includes('pants') || name.includes('hair') || name.includes('eye')) {
@@ -685,7 +687,13 @@
             if (res.ok) {
               const data = await res.json();
               container.innerHTML = '';
-              data.leaderboard.forEach((user, index) => {
+              // Фильтруем тестовых пользователей
+              const filtered = data.leaderboard.filter(u => {
+                const n = u.name.toLowerCase();
+                return !n.includes('test') && !n.includes('http') && !n.includes('admin');
+              });
+
+              filtered.forEach((user, index) => {
                 let medal = '';
                 if (index === 0) medal = '🥇';
                 else if (index === 1) medal = '🥈';
