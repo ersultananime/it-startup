@@ -687,13 +687,7 @@
             if (res.ok) {
               const data = await res.json();
               container.innerHTML = '';
-              // Фильтруем тестовых пользователей
-              const filtered = data.leaderboard.filter(u => {
-                const n = u.name.toLowerCase();
-                return !n.includes('test') && !n.includes('http') && !n.includes('admin');
-              });
-
-              filtered.forEach((user, index) => {
+              data.leaderboard.forEach((user, index) => {
                 let medal = '';
                 if (index === 0) medal = '🥇';
                 else if (index === 1) medal = '🥈';

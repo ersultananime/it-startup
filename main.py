@@ -554,7 +554,7 @@ def get_leaderboard(request: Request, db: Session = Depends(get_db)):
     
     # Sort descending by progress
     ranked.sort(key=lambda x: x["progress_pct"], reverse=True)
-    return {"leaderboard": ranked[:10]}
+    return {"leaderboard": ranked[:50]}
 
 
 # ── Admin Panel ───────────────────────────────────────────────────────────────
