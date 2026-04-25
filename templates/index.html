@@ -463,25 +463,33 @@
           if (w && h && bodyMesh) {
             bodyMesh.traverse((child) => {
               if (child.isMesh && child.morphTargetInfluences) {
-                const weightInf = Math.max(0, Math.min(1, (w - 60) / 60));
-                const heightInf = Math.max(0, Math.min(1, (h - 160) / 40));
-
                 const dict = child.morphTargetDictionary;
-                if (dict) {
-                  // Ищем морфы (регистронезависимо)
-                  for (const key in dict) {
-                    const k = key.toLowerCase();
-                    if (k === 'weight' || k === 'fat' || k === 'heavy') {
-                      child.morphTargetInfluences[dict[key]] = weightInf;
-                    }
-                    if (k === 'height' || k === 'tall' || k === 'scale') {
-                      child.morphTargetInfluences[dict[key]] = heightInf;
-                    }
+                if (!dict) return;
+
+                // Факторы изменений (относительно базы: вес 60, рост 160)
+                const weightFactor = (w - 60) / 60;
+                const heightFactor = (h - 160) / 40;
+
+                for (const key in dict) {
+                  const k = key.toLowerCase();
+                  const idx = dict[key];
+
+                  // 1. Вес и полнота
+                  if (k.includes('weight') || k.includes('fat') || k.includes('heavy') || k.includes('body_fat') || k.includes('mass')) {
+                    child.morphTargetInfluences[idx] = Math.max(0, Math.min(1, weightFactor));
                   }
-                } else if (child.morphTargetInfluences.length > 0) {
-                  // Запасной вариант по индексам
-                  child.morphTargetInfluences[0] = weightInf;
-                  if (child.morphTargetInfluences.length > 1) child.morphTargetInfluences[1] = heightInf;
+                  // 2. Худоба (инвертированный вес)
+                  if (k.includes('thin') || k.includes('skinny') || k.includes('slim')) {
+                    child.morphTargetInfluences[idx] = Math.max(0, Math.min(1, -weightFactor));
+                  }
+                  // 3. Рост
+                  if (k.includes('height') || k.includes('tall') || k.includes('scale_y') || k.includes('size_y')) {
+                    child.morphTargetInfluences[idx] = Math.max(0, Math.min(1, heightFactor));
+                  }
+                  // 4. Низкий рост
+                  if (k.includes('short') || k.includes('small')) {
+                    child.morphTargetInfluences[idx] = Math.max(0, Math.min(1, -heightFactor));
+                  }
                 }
               }
             });
