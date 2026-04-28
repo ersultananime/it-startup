@@ -148,16 +148,17 @@ def seed_database(db: Session):
                 created_at=new_date
             )
             db.add(user)
-        elif not user.name or user.name.strip() == "" or "" in user.name:
+        elif not user.name or user.name.strip() == "":
             # Исправляем битые имена
             user.name = f"User {username}"
             
     # Общая очистка для всех пользователей
     all_users = db.query(User).all()
     for u in all_users:
-        if not u.name or u.name.strip() == "" or "" in u.name:
+        if not u.name or u.name.strip() == "":
             u.name = f"Участник #{u.id}"
-            
+        elif u.name.startswith("Участник #") or u.name.startswith("User "):
+            u.name = u.username
     db.commit()
 
 @app.on_event("startup")
