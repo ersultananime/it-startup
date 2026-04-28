@@ -24,10 +24,18 @@ from sqlalchemy.orm import (
 # Ensure the data directory exists before establishing connection
 os.makedirs("./data", exist_ok=True)
 
-engine = create_engine(
-    "sqlite:///./data/tracker_v3.db",
-    connect_args={"check_same_thread": False},
-)
+DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///./data/tracker_v3.db")
+
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+
+if DATABASE_URL.startswith("sqlite"):
+    engine = create_engine(
+        DATABASE_URL,
+        connect_args={"check_same_thread": False},
+    )
+else:
+    engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
