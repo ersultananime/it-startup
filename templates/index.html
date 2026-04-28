@@ -336,12 +336,16 @@
         </h3>
         <div class="space-y-3" id="logsContainer">
           {% for log in logs %}
+          {% set log_hue = (54 + (142 - 54) * (log.progress_pct / 100)) | int %}
+          {% set log_sat = (96 - 3 * (log.progress_pct / 100)) | int %}
+          {% set log_lig = (52 + 5 * (log.progress_pct / 100)) | int %}
+          {% set log_color = 'hsl(' ~ log_hue ~ ', ' ~ log_sat ~ '%, ' ~ log_lig ~ '%)' %}
           <div
             class="log-row flex items-center justify-between p-3.5 rounded-2xl bg-white/60 border border-white/80 shadow-sm hover:shadow-md transition-shadow">
             <div class="flex items-center gap-3">
               <!-- Mini progress ring -->
               <div class="w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold shadow-sm"
-                style="background: conic-gradient(var(--bar-color) {{ log.progress_pct * 3.6 }}deg, #e2fce8 {{ log.progress_pct * 3.6 }}deg);">
+                style="background: conic-gradient({{ log_color }} {{ log.progress_pct * 3.6 }}deg, #e2fce8 {{ log.progress_pct * 3.6 }}deg);">
                 <div
                   class="w-7 h-7 bg-white rounded-full flex items-center justify-center text-xs font-bold text-slate-600">
                   {{ log.progress_pct | int }}%
@@ -651,15 +655,21 @@
               remainEl.textContent = 'Осталось: ' + rem.toFixed(1) + ' кг';
             }
 
+            const logPct = data.log.progress_pct;
+            const logHue = Math.round(54 + (142 - 54) * logPct / 100);
+            const logSat = Math.round(96 - 3 * logPct / 100);
+            const logLig = Math.round(52 + 5 * logPct / 100);
+            const logColor = `hsl(${logHue}, ${logSat}%, ${logLig}%)`;
+
             const logsContainer = document.getElementById('logsContainer');
             if (logsContainer) {
-              const rowHTML = `
+              const rowHTML = \`
             <div class="log-row flex items-center justify-between p-3.5 rounded-2xl bg-white/60 border border-white/80 shadow-sm hover:shadow-md transition-shadow">
               <div class="flex items-center gap-3">
                 <div class="w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold shadow-sm"
-                     style="background: conic-gradient(var(--bar-color) ${data.log.progress_pct * 3.6}deg, #e2fce8 ${data.log.progress_pct * 3.6}deg);">
+                     style="background: conic-gradient(\${logColor} \${logPct * 3.6}deg, #e2fce8 \${logPct * 3.6}deg);">
                   <div class="w-7 h-7 bg-white rounded-full flex items-center justify-center text-xs font-bold text-slate-600">
-                    ${data.log.progress_pct}%
+                    \${logPct}%
                   </div>
                 </div>
                 <div>
@@ -697,20 +707,26 @@
                 const isMe = user.is_me ? 'bg-emerald-50 border-emerald-200' : 'bg-white/60 border-white/80';
                 const nameWeight = user.is_me ? 'font-bold text-emerald-700' : 'font-semibold text-slate-700';
 
-                const rowHTML = `
-                <div class="flex items-center justify-between p-3 rounded-2xl ${isMe} border shadow-sm hover:shadow-md transition-shadow">
+                const pct = user.progress_pct;
+                const hue = Math.round(54 + (142 - 54) * pct / 100);
+                const sat = Math.round(96 - 3 * pct / 100);
+                const lig = Math.round(52 + 5 * pct / 100);
+                const barColor = `hsl(${hue}, ${sat}%, ${lig}%)`;
+
+                const rowHTML = \`
+                <div class="flex items-center justify-between p-3 rounded-2xl \${isMe} border shadow-sm hover:shadow-md transition-shadow">
                   <div class="flex items-center gap-3">
-                    <div class="text-lg w-6 text-center">${medal}</div>
-                    <p class="${nameWeight} text-sm whitespace-nowrap">${user.name} ${user.is_me ? '<span class="text-xs font-normal text-emerald-500 ml-1">(Вы)</span>' : ''}</p>
+                    <div class="text-lg w-6 text-center">\${medal}</div>
+                    <p class="\${nameWeight} text-sm whitespace-nowrap">\${user.name} \${user.is_me ? '<span class="text-xs font-normal text-emerald-500 ml-1">(Вы)</span>' : ''}</p>
                   </div>
                   <div class="flex items-center gap-2 ml-auto">
                     <div class="w-16 h-2 bg-slate-200 rounded-full overflow-hidden hidden sm:block">
-                      <div class="h-full bg-emerald-400 rounded-full" style="width: ${user.progress_pct}%"></div>
+                      <div class="h-full rounded-full" style="width: \${pct}%; background-color: \${barColor}"></div>
                     </div>
-                    <span class="text-xs font-bold text-slate-500 w-8 text-right">${user.progress_pct}%</span>
+                    <span class="text-xs font-bold text-slate-500 w-8 text-right">\${pct}%</span>
                   </div>
                 </div>
-              `;
+              \`;
                 container.insertAdjacentHTML('beforeend', rowHTML);
               });
             }
