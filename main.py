@@ -132,15 +132,15 @@ def seed_database(db: Session):
         # Random date
         random_seconds = random.randint(0, int(delta.total_seconds()))
         new_date = start_date + __import__("datetime").timedelta(seconds=random_seconds)
-        
         if not user:
+            random_weight = round(random.uniform(71.0, 80.0), 1)
             user = User(
                 username=username,
                 password=hashed_password,
                 name=f"User {username}",
                 height_cm=175.0,
                 start_weight_kg=80.0,
-                current_weight_kg=80.0,
+                current_weight_kg=random_weight,
                 target_weight_kg=70.0,
                 goal_label="Только вперед!",
                 is_premium=True,
@@ -260,15 +260,16 @@ def register(
     """Register a new user and set session cookie."""
     try:
         # Очистка данных и отладка
+        clean_username = str(data.username).strip()
         clean_password = str(data.password).strip()  # bcrypt 72-byte limit handled inside _hash_password
         print(f"DEBUG: Password length: {len(clean_password)}")
 
-        existing = db.query(User).filter(User.username == data.username).first()
+        existing = db.query(User).filter(User.username == clean_username).first()
         if existing:
             return JSONResponse({"status": "error", "message": "Username already taken"}, status_code=400)
         
         user = User(
-            username=data.username,
+            username=clean_username,
             password=_hash_password(clean_password),
             name=data.name,
             height_cm=data.height_cm,
@@ -297,18 +298,21 @@ def login(
 ):
     """Login and set session cookie."""
     try:
-        user = db.query(User).filter(User.username == data.username).first()
-        print(f"DEBUG: Received username: '{data.username}', password: '{data.password}'")
+        clean_username = str(data.username).strip()
+        clean_password = str(data.password).strip()
+        
+        user = db.query(User).filter(User.username == clean_username).first()
+        print(f"DEBUG: Received username: '{clean_username}', password: '{clean_password}'")
         match = False
         if user:
             print(f"DEBUG: Found user: '{user.username}', stored hash: '{user.password}'")
             # Проверяем через bcrypt напрямую
-            match = _verify_password(data.password, user.password)
+            match = _verify_password(clean_password, user.password)
             if not match:
                 # Fallback: проверка plain-text пароля (миграция старых аккаунтов)
-                if data.password == user.password:
+                if clean_password == user.password:
                     match = True
-                    user.password = _hash_password(data.password)
+                    user.password = _hash_password(clean_password)
                     db.commit()
                     print(f"DEBUG: Password for {user.username} migrated to hash")
         
