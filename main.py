@@ -161,15 +161,48 @@ def seed_database(db: Session):
             u.name = u.username
     db.commit()
 
+def migrate_from_sqlite(db: Session):
+    """Migrate data from local SQLite to remote PostgreSQL if needed."""
+    try:
+        from sqlalchemy import create_engine
+        from sqlalchemy.orm import sessionmaker
+        
+        # Connect to local sqlite
+        sqlite_engine = create_engine("sqlite:///./data/tracker_v3.db")
+        SqliteSession = sessionmaker(bind=sqlite_engine)
+        sqlite_db = SqliteSession()
+        
+        sqlite_users = sqlite_db.query(User).all()
+        for su in sqlite_users:
+            if not db.query(User).filter(User.username == su.username).first():
+                new_u = User(
+                    username=su.username,
+                    password=su.password,
+                    name=su.name,
+                    height_cm=su.height_cm,
+                    start_weight_kg=su.start_weight_kg,
+                    current_weight_kg=su.current_weight_kg,
+                    target_weight_kg=su.target_weight_kg,
+                    goal_label=su.goal_label,
+                    payment_ref=su.payment_ref,
+                    is_paid=su.is_paid,
+                    is_premium=su.is_premium,
+                    created_at=su.created_at
+                )
+                db.add(new_u)
+                db.commit()
+                
+        sqlite_db.close()
+    except Exception as e:
+        print(f"Migration error: {e}")
+
 @app.on_event("startup")
 def on_startup():
     from database import SessionLocal
     db = SessionLocal()
-    try:
-        seed_database(db)
-        print("DEBUG: Database auto-seeded on startup")
-    finally:
-        db.close()
+    migrate_from_sqlite(db)
+    seed_database(db)
+    db.close()
 
 app.add_middleware(
     CORSMiddleware,
