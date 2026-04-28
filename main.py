@@ -119,7 +119,7 @@ app = FastAPI(title="Step by Step")
 
 def seed_database(db: Session):
     """Seed the database with initial test users."""
-    target_usernames = ["Aris", "Dan4o", "Vera", "Alis"]
+    target_usernames = ["Aris", "Dan4o", "Vera", "Alis", "Anko"]
     hashed_password = _hash_password("Aa1234@E")
     
     start_date = datetime(2026, 4, 18, tzinfo=timezone.utc)
